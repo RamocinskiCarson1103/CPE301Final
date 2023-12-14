@@ -31,6 +31,12 @@ volatile unsigned char *myUCSR0B = (unsigned char *)0x00C1;
 volatile unsigned char *myUCSR0C = (unsigned char *)0x00C2;
 volatile unsigned int  *myUBRR0  = (unsigned int *) 0x00C4;
 volatile unsigned char *myUDR0   = (unsigned char *)0x00C6;
+volatile unsigned char *myTCCR1A  = (unsigned char *) 0x80;
+volatile unsigned char *myTCCR1B  = (unsigned char *) 0x81;
+volatile unsigned char *myTCCR1C  = (unsigned char *) 0x82;
+volatile unsigned char *myTIMSK1  = (unsigned char *) 0x6F;
+volatile unsigned char *myTIFR1   = (unsigned char *) 0x36;
+volatile unsigned int  *myTCNT1   = (unsigned int *) 0x84;
 RTC_DS1307 RTC; // clock
 
 // Sensor conditions
@@ -228,6 +234,39 @@ unsigned int adc_read(unsigned char adc_channel_num)
   *my_ADCSRA |= 0b01000000;
   while ((*my_ADCSRA & 0x40) != 0);
   return pow(2 * (*my_ADCH_DATA & (1 << 0)), 8) + pow(2 * (*my_ADCH_DATA & (1 << 1)), 9) + *my_ADCL_DATA; 
+}
+
+// Timer setup function
+void setup_timer_regs()
+{
+  // setup the timer control registers
+  *myTCCR1A= 0x00;
+  *myTCCR1B= 0X00;
+  *myTCCR1C= 0x00;
+  
+  // reset the TOV flag
+  *myTIFR1 |= 0x01;
+  
+  // enable the TOV interrupt
+  *myTIMSK1 |= 0x6E;
+}
+
+// TIMER OVERFLOW ISR
+ISR(TIMER1_OVF_vect)
+{
+  int currentTicks;
+  // Stop the Timer
+  *myTCCR1B &= 0xF8;
+  // Load the Count
+  *myTCNT1 =  (unsigned int) (65535 -  (unsigned long) (currentTicks));
+  // Start the Timer
+  *myTCCR1B |=  0x00000001;
+  // if it's not the STOP amount
+  if(currentTicks != 65535)
+  {
+    // XOR to toggle PB6
+    *portB ^= 0x40;
+  }
 }
 
 void U0init(unsigned long U0baud)
